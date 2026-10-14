@@ -31,6 +31,27 @@ secretyaml.save(config)              # riscrive config.yaml con password: !secre
 - **Valori segreti nei log:** sono stringhe normali, ma il loro `repr` è mascherato. `print(config)` mostra
   `Secret('***', key='mioservizio/password')` invece della password.
 
+## Installazione
+
+La libreria si installa direttamente da GitHub.
+
+Nelle app che leggono i file YAML:
+
+```bash
+poetry add git+https://github.com/fmaida/secretyaml.git
+```
+
+Il comando `secrets` per gestire i segreti, sulla macchina dell'amministratore:
+
+```bash
+pipx install git+https://github.com/fmaida/secretyaml.git
+```
+
+Per fissare una versione precisa si usa un tag Git: `...secretyaml.git#v26.10.1` con Poetry,
+`...secretyaml.git@v26.10.1` con pipx.
+
+Per aggiornare: `poetry update secretyaml` nelle app, `pipx upgrade secretyaml` per il comando.
+
 ## Come funziona
 
 Ogni `!secret "a/b"` viene sostituito dal contenuto del file `~/.secrets/a/b`, senza il newline finale.
@@ -60,7 +81,7 @@ di sistema, SOPS, Vault o i secret manager dei cloud provider.
 
 ## Gestire i segreti
 
-Con `pipx install .` si ottiene il comando `secrets`:
+Una volta installato con pipx (vedi sopra) si ottiene il comando `secrets`:
 
 ```
 $ secrets add servizio/token
