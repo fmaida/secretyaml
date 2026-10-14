@@ -81,6 +81,6 @@ Le conferme accettano solo `y` o `Y`; qualsiasi altra risposta annulla. Con `--d
 ## Sviluppo
 
 ```bash
-uv sync
-uv run pytest
+poetry install
+poetry run pytest
 ```

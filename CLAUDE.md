@@ -39,7 +39,7 @@ Considera che in produzione le app che useranno questa libreria staranno su una 
 
 ## Convenzioni
 
-- Python >= 3.13, unica dipendenza PyYAML. Build con poetry-core, ambiente gestito con uv.
+- Python >= 3.13, unica dipendenza PyYAML. Progetto gestito con **Poetry** (non uv): build con poetry-core, lockfile `poetry.lock`, pytest nel gruppo `dev` (`[dependency-groups]`).
 - Versionamento CalVer `AA.MM.patch` (es. `26.10.0`).
 - I controlli su chiavi, symlink e permessi non servono a difendersi da attacchi. Servono a impedire che l'amministratore stesso, per errore, faccia danni a file esterni.
   - Regola: nessuna operazione deve mai scrivere, cancellare o cambiare permessi fuori dalla cartella dei segreti.
@@ -59,9 +59,9 @@ Considera che in produzione le app che useranno questa libreria staranno su una 
 ## Comandi di sviluppo
 
 ```bash
-uv sync               # installa dipendenze e pacchetto in modalità editabile
-uv run pytest         # test
-uv run secrets --dir /tmp/prova list
+poetry install                            # dipendenze + pacchetto in modalità editabile (.venv nel progetto)
+poetry run pytest                         # test
+poetry run secrets --dir /tmp/prova list
 ```
 
 ## Estensioni future
