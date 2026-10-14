@@ -13,15 +13,30 @@ login:
 import secretyaml
 
 config = secretyaml.load("config.yaml")
-config["login"]["password"]   # contenuto del file ~/.secrets/mioservizio/password
+config["login"]["password"]          # "s3greta": il contenuto di ~/.secrets/mioservizio/password
+
+config["login"]["user"] = "altro@test.com"
+secretyaml.save(config)              # riscrive config.yaml con password: !secret "mioservizio/password"
 ```
+
+- **`load(path)`** legge il file e restituisce un `dict` con le password già in chiaro. L'app lo usa come un
+  dizionario qualsiasi. Il documento deve essere un dizionario: un file vuoto restituisce `{}`, una lista o
+  un valore singolo sollevano `SecretYamlError`.
+- **`save(config)`** riscrive il dizionario nello stesso file da cui è stato caricato. La libreria ricorda quali
+  campi venivano da un `!secret` e li riscrive come `!secret "chiave"`, così la password non finisce mai nel YAML.
+  - Nessuna app può cambiare una password: lo fa solo l'amministratore, a mano, con `secrets add`.
+    Se un'app sostituisce un campo segreto con un valore nuovo, `save` solleva `SecretYamlError` e non scrive nulla.
+  - I commenti del file originale si perdono (l'ordine delle chiavi resta).
+  - Con `save(dati, path)` si può scrivere in un altro file, anche un dizionario non caricato con `load`.
+- **Valori segreti nei log:** sono stringhe normali, ma il loro `repr` è mascherato. `print(config)` mostra
+  `Secret('***', key='mioservizio/password')` invece della password.
 
 ## Come funziona
 
 Ogni `!secret "a/b"` viene sostituito dal contenuto del file `~/.secrets/a/b`, senza il newline finale.
 
 - **Permessi:** le cartelle devono avere `700` e i file `600`, e devono appartenere all'utente corrente. Altrimenti la libreria solleva `InsecurePermissionsError` invece di leggere.
-- **Chiavi rifiutate:** quelle vuote, quelle assolute, quelle con `..` e quelle che puntano fuori dalla cartella dei segreti.
+- **Chiavi rifiutate:** quelle vuote, quelle assolute (`/chiave`), quelle che iniziano con `~` (`~/chiave`), quelle con `..` e quelle che puntano fuori dalla cartella dei segreti.
 - **Cartella dei segreti:** `FileResolver("/altra/cartella")`, oppure la variabile `SECRETYAML_DIR`; altrimenti `~/.secrets`.
 - **Parsing sicuro:** usa `yaml.SafeLoader`.
 

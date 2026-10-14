@@ -24,7 +24,11 @@ def test_missing_secret(secrets_dir):
         FileResolver(secrets_dir).resolve("nope")
 
 
-@pytest.mark.parametrize("key", ["", "   ", "/etc/passwd", "../fuori", "a/../../b", "C:\\x", "a\\..\\b"])
+@pytest.mark.parametrize("key", [
+    "", "   ", "/etc/passwd", "//etc/passwd", "../fuori", "./../fuori", "a/../../b", "..",
+    "~/../.config/altro-servizio/token", "../.config/altro-servizio/token", "C:\\x", "a\\..\\b",
+    "/chiave", "~/chiave", "~", "~root/chiave", "~/.ssh/id_rsa",
+])
 def test_invalid_keys(secrets_dir, key):
     with pytest.raises(InvalidSecretKeyError):
         FileResolver(secrets_dir).resolve(key)
@@ -37,6 +41,16 @@ def test_symlink_escaping_base(secrets_dir, tmp_path):
     (secrets_dir / "link").symlink_to(outside)
     with pytest.raises(InvalidSecretKeyError):
         FileResolver(secrets_dir).resolve("link")
+
+
+def test_symlinked_dir_escaping_base(secrets_dir, tmp_path):
+    outside = tmp_path / "fuori"
+    outside.mkdir(mode=0o700)
+    (outside / "token").write_text("rubato")
+    (outside / "token").chmod(0o600)
+    (secrets_dir / "link-dir").symlink_to(outside)
+    with pytest.raises(InvalidSecretKeyError):
+        FileResolver(secrets_dir).resolve("link-dir/token")
 
 
 def test_file_too_open(secrets_dir, make_secret):

@@ -1,6 +1,6 @@
 [project]
 name = "secretyaml"
-version = "26.10.0"
+version = "26.10.1"
 description = "Carica file YAML risolvendo i tag !secret da una sorgente esterna (es. ~/.secrets)"
 authors = [
     {name = "Francesco Maida",email = "francesco.maida@gmail.com"}

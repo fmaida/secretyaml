@@ -1,11 +1,10 @@
 import argparse
 import getpass
-import os
 import stat
 import sys
-import tempfile
 from pathlib import Path
 
+from secretyaml._fs import atomic_write
 from secretyaml.errors import InvalidSecretKeyError, SecretYamlError
 from secretyaml.resolvers import DIR_MODE, FILE_MODE, default_base_dir, permission_problem, validate_key
 
@@ -39,18 +38,7 @@ def cmd_add(base: Path, key: str, force: bool) -> int:
             current.mkdir(mode=DIR_MODE)
             current.chmod(DIR_MODE)  # mkdir è soggetto a umask
 
-    # mkstemp crea il file già con permessi 600; os.replace rende la scrittura atomica.
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".secretyaml-")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(value + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, FILE_MODE)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+    atomic_write(path, value + "\n", FILE_MODE)
 
     print(f"Secret added as {key}")
     return _report(_iter_paths(base))
@@ -103,6 +91,9 @@ def cmd_check(base: Path, fix: bool) -> int:
                 except PermissionError:
                     pass  # proprietario diverso: verrà segnalato sotto
     problems = _report(_iter_paths(base))
+    for p in _outside_symlinks(base):
+        print(f"{p}: symlink pointing outside {base}, ignored (never modified)", file=sys.stderr)
+        problems = 1
     if not problems:
         print(f"{base}: permissions are correct")
     return problems
@@ -110,7 +101,9 @@ def cmd_check(base: Path, fix: bool) -> int:
 
 def _secret_path(base: Path, key: str) -> Path:
     path = base / validate_key(key)
-    if path.exists() and not path.resolve().is_relative_to(base.resolve()):
+    # Controllato anche se il segreto non esiste ancora: una cartella intermedia potrebbe
+    # essere un symlink verso l'esterno, e `add` ci scriverebbe dentro.
+    if not path.resolve().is_relative_to(base.resolve()):
         raise InvalidSecretKeyError(f"il segreto {key!r} punta fuori da {base}")
     return path
 
@@ -135,8 +128,16 @@ def _confirm(prompt: str) -> bool:
 
 
 def _iter_paths(base: Path):
+    # I symlink sono esclusi: chmod li seguirebbe e cambierebbe i permessi di file esterni.
     yield base
-    yield from sorted(base.rglob("*"))
+    yield from (p for p in sorted(base.rglob("*")) if not p.is_symlink())
+
+
+def _outside_symlinks(base: Path):
+    root = base.resolve()
+    for p in sorted(base.rglob("*")):
+        if p.is_symlink() and not p.resolve().is_relative_to(root):
+            yield p
 
 
 def _report(paths) -> int:

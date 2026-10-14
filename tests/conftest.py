@@ -22,3 +22,28 @@ def make_secret(secrets_dir):
         return path
 
     return _make
+
+
+class DictResolver:
+    """Resolver in memoria per i test del loader."""
+
+    def __init__(self, data):
+        self.data = data
+
+    def resolve(self, key):
+        from secretyaml import SecretNotFoundError
+
+        try:
+            return self.data[key]
+        except KeyError:
+            raise SecretNotFoundError(key) from None
+
+
+@pytest.fixture
+def write_yaml(tmp_path):
+    def _write(text: str, name: str = "config.yaml"):
+        path = tmp_path / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    return _write

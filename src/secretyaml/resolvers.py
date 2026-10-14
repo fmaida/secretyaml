@@ -48,6 +48,8 @@ def validate_key(key: str) -> PurePosixPath:
         raise InvalidSecretKeyError("chiave del segreto vuota")
     if rel.is_absolute() or "\\" in key or ":" in rel.parts[0]:
         raise InvalidSecretKeyError(f"la chiave {key!r} non può essere un percorso assoluto")
+    if rel.parts[0].startswith("~"):
+        raise InvalidSecretKeyError(f"la chiave {key!r} non può iniziare con '~'")
     if ".." in rel.parts:
         raise InvalidSecretKeyError(f"la chiave {key!r} non può contenere '..'")
     return rel

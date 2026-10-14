@@ -26,8 +26,14 @@ Considera che in produzione le app che useranno questa libreria staranno su una 
 
 ## Struttura del codice
 
-- `src/secretyaml/loader.py`: `load` / `loads`. Il tag `!secret` è registrato su una sottoclasse di `yaml.SafeLoader`, mai sul SafeLoader globale.
-- `src/secretyaml/resolvers.py`: protocollo `SecretResolver` (`resolve(key) -> str`), cioè il "plugin", e l'unica implementazione attuale `FileResolver`. Qui stanno anche la validazione delle chiavi (niente chiavi vuote, assolute, con `..` o con symlink che escono dalla base) e il controllo dei permessi.
+- `src/secretyaml/loader.py`: `load(path)` e `save(data, path=None)`.
+  - `load` restituisce sempre un `SecretYamlDict` (documento vuoto → `{}`, non-dizionario → `SecretYamlError`).
+  - Il tag `!secret` è registrato su una sottoclasse di `yaml.SafeLoader`, mai sul SafeLoader globale; i representer di `save` stanno su una sottoclasse di `SafeDumper`.
+- `src/secretyaml/types.py`:
+  - `Secret`: sottoclasse di `str` con l'attributo `key`; `repr` mascherato.
+  - `SecretYamlDict`: sottoclasse di `dict` con `source_path` e `secret_fields` (percorso del campo → chiave).
+- `src/secretyaml/_fs.py`: `atomic_write`, condivisa da `save` e da `secrets add`.
+- `src/secretyaml/resolvers.py`: protocollo `SecretResolver` (`resolve(key) -> str`), cioè il "plugin", e l'unica implementazione attuale `FileResolver`. Qui stanno anche la validazione delle chiavi (niente chiavi vuote, assolute, che iniziano con `~`, con `..` o con symlink che escono dalla base) e il controllo dei permessi.
 - `src/secretyaml/errors.py`: `SecretYamlError` e sottoclassi. I messaggi non devono **mai** contenere il valore di un segreto.
 - `src/secretyaml/cli.py`: il comando `secrets` (`add`, `remove`, `list`, `check`).
 
@@ -35,8 +41,14 @@ Considera che in produzione le app che useranno questa libreria staranno su una 
 
 - Python >= 3.13, unica dipendenza PyYAML. Build con poetry-core, ambiente gestito con uv.
 - Versionamento CalVer `AA.MM.patch` (es. `26.10.0`).
+- I controlli su chiavi, symlink e permessi non servono a difendersi da attacchi. Servono a impedire che l'amministratore stesso, per errore, faccia danni a file esterni.
+  - Regola: nessuna operazione deve mai scrivere, cancellare o cambiare permessi fuori dalla cartella dei segreti.
+  - Vale per `secrets add`, `secrets remove` e `secrets check --fix`. I symlink verso l'esterno vengono rifiutati o ignorati, mai seguiti.
+- Nessuna app ha il diritto di cambiare una password: lo fa solo l'amministratore, a mano, con `secrets add`. La libreria espone solo la lettura dei segreti (`resolve`) e non offre API per scriverli.
 - Il protocollo `SecretResolver` resta minimale: tutto ciò che riguarda i file (permessi, percorsi) sta in `FileResolver`, non nel loader.
-- Niente funzione `dump`: riscriverebbe i segreti in chiaro.
+- `save` non deve mai scrivere un segreto in chiaro:
+  - i valori `Secret` tornano a essere `!secret "chiave"`;
+  - se un campo registrato in `secret_fields` ora contiene un valore che non è un `Secret`, il salvataggio viene bloccato con `SecretYamlError` e nessun file viene scritto.
 - CLI:
   - messaggi in inglese;
   - ogni conferma ha default N e accetta solo `y` o `Y` esatti;

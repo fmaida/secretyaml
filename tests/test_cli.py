@@ -128,7 +128,8 @@ def test_add_from_stdin_existing_needs_force(tmp_path, monkeypatch):
 
 def test_add_rejects_invalid_key_and_empty_value(tmp_path, monkeypatch):
     base = tmp_path / "s"
-    assert run(monkeypatch, ["--dir", str(base), "add", "../x"], "pw") == 1
+    for key in ("../x", "/chiave", "~/chiave"):
+        assert run(monkeypatch, ["--dir", str(base), "add", key], "pw") == 1
     assert run(monkeypatch, ["--dir", str(base), "add", "k"], "") == 1
 
 
@@ -210,3 +211,49 @@ def test_env_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRETYAML_DIR", str(base))
     assert run(monkeypatch, ["add", "k"], "pw") == 0
     assert (base / "k").is_file()
+
+
+# --- nessuna modifica fuori dalla cartella dei segreti --------------------------
+
+@pytest.fixture
+def external(tmp_path):
+    """Cartella esterna con un file, raggiungibile via symlink da dentro la base."""
+    base = tmp_path / "s"
+    base.mkdir(mode=0o700)
+    base.chmod(0o700)
+    ext = tmp_path / "esterna"
+    ext.mkdir()
+    ext.chmod(0o755)
+    (ext / "importante.txt").write_text("non toccare")
+    (ext / "importante.txt").chmod(0o644)
+    (base / "link-dir").symlink_to(ext)
+    (base / "link-file").symlink_to(ext / "importante.txt")
+    return base, ext
+
+
+def test_add_refuses_symlinked_dir_outside(monkeypatch, external):
+    base, ext = external
+    assert run(monkeypatch, ["--dir", str(base), "add", "link-dir/nuovo"], "pw") == 1
+    assert sorted(p.name for p in ext.iterdir()) == ["importante.txt"]
+
+
+def test_add_refuses_symlinked_file_outside(monkeypatch, external):
+    base, ext = external
+    assert run(monkeypatch, ["--dir", str(base), "add", "--force", "link-file"], "pw") == 1
+    assert (ext / "importante.txt").read_text() == "non toccare"
+
+
+def test_remove_refuses_outside(monkeypatch, external):
+    base, ext = external
+    assert run(monkeypatch, ["--dir", str(base), "remove", "-y", "link-dir/importante.txt"]) == 1
+    assert run(monkeypatch, ["--dir", str(base), "remove", "-y", "link-file"]) == 1
+    assert (ext / "importante.txt").exists()
+    assert (base / "link-file").is_symlink()
+
+
+def test_check_fix_never_touches_outside(external, capsys):
+    base, ext = external
+    assert main(["--dir", str(base), "check", "--fix"]) == 1
+    assert "symlink pointing outside" in capsys.readouterr().err
+    assert mode(ext) == 0o755
+    assert mode(ext / "importante.txt") == 0o644
